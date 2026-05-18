@@ -9,9 +9,9 @@ metadata:
   namespace: ${SQS_TARGET_NAMESPACE}
 spec:
   scaleTargetRef:
-    name: ${SQS_TARGET_DEPLOYMENT}     #K8s deployement to target
+    name: ${SQS_TARGET_DEPLOYMENT}     #K8s deployment to target
   minReplicaCount: 1  # We don't want pods if the queue is empty nginx-deployment
-  maxReplicaCount: 2000  # We don't want to have more than 15 replicas
+  maxReplicaCount: 100  # We don't want to have more than 100 replicas
   pollingInterval: 30 # How frequently we should go for metrics (in seconds)
   cooldownPeriod:  10 # How many seconds should we wait for downscale  
   triggers:
