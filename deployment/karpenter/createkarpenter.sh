@@ -4,18 +4,19 @@ set -euo pipefail
 # Deploy Karpenter
 #*************************
 ## SWITCH CLUSTER CONTEXT
-echo "${GREEN}=========================="
-echo "${GREEN}Installing karpenter"
-echo "${GREEN}=========================="
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-source "$SCRIPT_DIR/../environmentVariables.sh"
 GREEN="${GREEN:-}"
 RED="${RED:-}"
 YELLOW="${YELLOW:-}"
 CYAN="${CYAN:-}"
 BLUE="${BLUE:-}"
 NC="${NC:-}"
+
+echo "${GREEN}=========================="
+echo "${GREEN}Installing karpenter"
+echo "${GREEN}=========================="
+
+source "$SCRIPT_DIR/../environmentVariables.sh"
 
 echo "${RED}Casesenstive ${BLUE} Press Y = Proceed \n or \n N = Cancel (change context 'kubectl config use-context {context name you can check using kubectl config view}' and run script)"
 read user_input
@@ -45,7 +46,6 @@ curl -fsSL https://karpenter.sh/docs/getting-started/getting-started-with-karpen
   --parameter-overrides "ClusterName=${CLUSTER_NAME}" \
   --region ${AWS_REGION}
 
-
 #grant access to instances using the profile to connect to the cluster. This command adds the Karpenter node role to your aws-auth configmap, 
 #allowing nodes with this role to connect to the cluster.
 
@@ -68,10 +68,12 @@ eksctl utils associate-iam-oidc-provider --cluster ${CLUSTER_NAME} --approve
 #and associate them using IAM Roles for Service Accounts (IRSA)
 echo "Map AWS IAM Role  Kubernetes service account"
 
+export KARPENTER_CONTROLLER_POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}"
+
 eksctl create iamserviceaccount \
   --cluster "${CLUSTER_NAME}" --name karpenter --namespace karpenter \
   --role-name "Karpenter-${CLUSTER_NAME}" \
-  --attach-policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}" \
+  --attach-policy-arn "${KARPENTER_CONTROLLER_POLICY_ARN}" \
   --role-only \
   --approve
 
@@ -138,9 +140,6 @@ spec:
     - tags:
         karpenter.sh/discovery: "${CLUSTER_NAME}" # replace with your cluster name
 EOF
-
-
-
 
 echo "${GREEN}=========================="
 echo "${GREEN}Karpenter Completed"
