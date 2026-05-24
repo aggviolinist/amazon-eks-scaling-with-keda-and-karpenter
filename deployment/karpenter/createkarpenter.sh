@@ -68,12 +68,17 @@ eksctl utils associate-iam-oidc-provider --cluster ${CLUSTER_NAME} --approve
 #and associate them using IAM Roles for Service Accounts (IRSA)
 echo "Map AWS IAM Role  Kubernetes service account"
 
-export KARPENTER_CONTROLLER_POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}"
+#export KARPENTER_CONTROLLER_POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}"
 
 eksctl create iamserviceaccount \
   --cluster "${CLUSTER_NAME}" --name karpenter --namespace karpenter \
   --role-name "Karpenter-${CLUSTER_NAME}" \
-  --attach-policy-arn "${KARPENTER_CONTROLLER_POLICY_ARN}" \
+  --attach-policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerInterruptionPolicy-${CLUSTER_NAME}" \
+  --attach-policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerNodeLifecyclePolicy-${CLUSTER_NAME}" \
+  --attach-policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerIAMIntegrationPolicy-${CLUSTER_NAME}" \
+  --attach-policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerEKSIntegrationPolicy-${CLUSTER_NAME}" \
+  --attach-policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerZonalShiftPolicy-${CLUSTER_NAME}" \
+  --attach-policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/KarpenterControllerResourceDiscoveryPolicy-${CLUSTER_NAME}" \
   --role-only \
   --approve
 
@@ -89,12 +94,41 @@ export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --que
 
 helm registry logout public.ecr.aws
 
+# If CRDs already exist, label them for Helm ownership; otherwise Helm will create them fresh
+# for crd in ec2nodeclasses.karpenter.k8s.aws nodeclaims.karpenter.sh nodepools.karpenter.sh; do
+#   if kubectl get crd $crd &>/dev/null; then
+#     echo "CRD $crd exists, patching Helm ownership labels..."
+#     kubectl patch crd $crd --type=merge -p '{"metadata":{"labels":{"app.kubernetes.io/managed-by":"Helm"},"annotations":{"meta.helm.sh/release-name":"karpenter-crd","meta.helm.sh/release-namespace":"karpenter"}}}'
+#   else
+#     echo "CRD $crd does not exist, will be created by Helm..."
+#   fi
+# done
+
+# Better - explicitly log when nothing found
+KARPENTER_CRDS=$(kubectl get crds 2>/dev/null | grep karpenter | awk '{print $1}')
+if [ -z "$KARPENTER_CRDS" ]; then
+  echo "No existing Karpenter CRDs found, Helm will create them fresh..."
+else
+  for crd in $KARPENTER_CRDS; do
+    echo "CRD $crd exists, patching Helm ownership labels..."
+    kubectl patch crd $crd --type=merge -p '{"metadata":{"labels":{"app.kubernetes.io/managed-by":"Helm"},"annotations":{"meta.helm.sh/release-name":"karpenter-crd","meta.helm.sh/release-namespace":"karpenter"}}}'
+  done
+fi
+
+helm upgrade --install karpenter-crd oci://public.ecr.aws/karpenter/karpenter-crd \
+  --version ${KARPENTER_VERSION} \
+  --namespace karpenter \
+  --create-namespace \
+  --wait
+
+# Verify CRDs are installed
+kubectl get crds | grep karpenter
+
 helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --namespace karpenter --create-namespace \
   --version ${KARPENTER_VERSION} \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=${KARPENTER_IAM_ROLE_ARN} \
-  --set settings.aws.clusterName=${CLUSTER_NAME} \
-  --set settings.aws.defaultInstanceProfile=KarpenterNodeInstanceProfile-${CLUSTER_NAME} \
-  --set settings.aws.interruptionQueueName=${CLUSTER_NAME} \
+  --set settings.clusterName=${CLUSTER_NAME} \
+  --set settings.interruptionQueue=${CLUSTER_NAME} \
   --set controller.resources.requests.cpu=1 \
   --set controller.resources.requests.memory=1Gi \
   --set controller.resources.limits.cpu=1 \
@@ -104,13 +138,14 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter --name
 #deploy Provisioner & AWSNodeTemplate 
 echo "Providers & AWSNodeTemplate "
 cat <<EOF | envsubst | kubectl apply -f -
-apiVersion: karpenter.sh/v1beta1
+apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: default
 spec:
   template:
     spec:
+      expireAfter: 720h # 30 * 24h = 720h
       requirements:
         - key: karpenter.sh/capacity-type
           operator: NotIn
@@ -119,19 +154,22 @@ spec:
           operator: In
           values: ["m5.xlarge", "m5.2xlarge"]
       nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
         name: default
   limits:
     cpu: 1000
   disruption:
-    consolidationPolicy: WhenUnderutilized
-    expireAfter: 720h # 30 * 24h = 720h
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 30s
 ---
-apiVersion: karpenter.k8s.aws/v1beta1
+apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
   name: default
 spec:
-  amiFamily: AL2 # Amazon Linux 2
+  amiSelectorTerms:
+    - alias: al2@latest
   role: "KarpenterNodeRole-${CLUSTER_NAME}" # replace with your cluster name
   subnetSelectorTerms:
     - tags:

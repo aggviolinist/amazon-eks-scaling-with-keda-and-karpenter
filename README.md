@@ -129,11 +129,11 @@ kubectl logs -f -n karpenter -l app.kubernetes.io/name=karpenter -c controller
 
    ```shell
    cd app/keda
-   python3 -m venv env
-   source env/bin/activate
+   python3 -m venv keda-test
+   source keda-test/bin/activate
    pip install boto3
-   cd  {your path}/amazon-eks-scaling-with-keda-and-karpenter
-   python3 ./app/keda/keda-mock-sqs-post.py
+   source ../../deployment/environmentVariables.sh
+   python3 keda-mock-sqs-post.py
    ```
 <img  src="https://github.com/aws-samples/amazon-eks-scaling-with-keda-and-karpenter/blob/main/img/runloadscript.jpg">
 
