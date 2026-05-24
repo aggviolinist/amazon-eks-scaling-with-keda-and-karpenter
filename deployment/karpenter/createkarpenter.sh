@@ -94,16 +94,6 @@ export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --que
 
 helm registry logout public.ecr.aws
 
-# If CRDs already exist, label them for Helm ownership; otherwise Helm will create them fresh
-# for crd in ec2nodeclasses.karpenter.k8s.aws nodeclaims.karpenter.sh nodepools.karpenter.sh; do
-#   if kubectl get crd $crd &>/dev/null; then
-#     echo "CRD $crd exists, patching Helm ownership labels..."
-#     kubectl patch crd $crd --type=merge -p '{"metadata":{"labels":{"app.kubernetes.io/managed-by":"Helm"},"annotations":{"meta.helm.sh/release-name":"karpenter-crd","meta.helm.sh/release-namespace":"karpenter"}}}'
-#   else
-#     echo "CRD $crd does not exist, will be created by Helm..."
-#   fi
-# done
-
 # Better - explicitly log when nothing found
 KARPENTER_CRDS=$(kubectl get crds 2>/dev/null | grep karpenter | awk '{print $1}')
 if [ -z "$KARPENTER_CRDS" ]; then
