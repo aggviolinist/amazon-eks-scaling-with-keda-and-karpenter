@@ -6,6 +6,8 @@ from datetime import datetime
 import os
 from os import environ
 
+boto3.setup_default_session(profile_name='default')
+
 # create a function to add numbers
 starttime = time.time()
 if 'SQS_QUEUE_URL' in os.environ:

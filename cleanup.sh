@@ -29,9 +29,16 @@ for stack in $STACKS; do
     echo "${YELLOW}Disabling termination protection for stack: ${stack}"
     aws cloudformation update-termination-protection --stack-name "$stack" --region "${AWS_REGION}" --no-enable-termination-protection
   fi
-
-  aws cloudformation delete-stack --stack-name "$stack" --region "${AWS_REGION}"
+   STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$stack" --region "${AWS_REGION}" --output text --query 'Stacks[0].StackStatus') || true
+   
+  if [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
+    aws cloudformation delete-stack --stack-name "$stack" --region "${AWS_REGION}" --deletion-mode FORCE_DELETE_STACK
+  else
+    aws cloudformation delete-stack --stack-name "$stack" --region "${AWS_REGION}"
+  fi
   aws cloudformation wait stack-delete-complete --region "${AWS_REGION}" --stack-name "$stack"
+  #aws cloudformation delete-stack --stack-name "$stack" --region "${AWS_REGION}" --deletion-mode FORCE_DELETE_STACK
+  #aws cloudformation wait stack-delete-complete --region "${AWS_REGION}" --stack-name "$stack"
 done
 
 # Delete IAM Roles

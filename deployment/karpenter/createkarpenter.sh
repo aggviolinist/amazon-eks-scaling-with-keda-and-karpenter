@@ -95,7 +95,12 @@ export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --que
 helm registry logout public.ecr.aws
 
 # Better - explicitly log when nothing found
-KARPENTER_CRDS=$(kubectl get crds 2>/dev/null | grep karpenter | awk '{print $1}')
+KARPENTER_CRDS=$(kubectl get crds 2>/dev/null | grep karpenter | awk '{print $1}' || true)
+
+# KARPENTER_CRDS=$(echo "" | grep karpenter | awk '{print $1}' || true)
+# echo "Value: '${KARPENTER_CRDS}'"
+# echo "Is empty: $([ -z "$KARPENTER_CRDS" ] && echo yes || echo no)"
+
 if [ -z "$KARPENTER_CRDS" ]; then
   echo "No existing Karpenter CRDs found, Helm will create them fresh..."
 else
