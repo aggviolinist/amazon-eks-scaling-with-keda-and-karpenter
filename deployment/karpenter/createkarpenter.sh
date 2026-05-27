@@ -94,6 +94,7 @@ export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name ${CLUSTER_NAME} --que
 
 helm registry logout public.ecr.aws
 
+kubectl create namespace karpenter --dry-run=client -o yaml | kubectl apply -f -
 # Better - explicitly log when nothing found
 KARPENTER_CRDS=$(kubectl get crds 2>/dev/null | grep karpenter | awk '{print $1}' || true)
 
@@ -147,7 +148,7 @@ spec:
           values: ["spot"]
         - key: node.kubernetes.io/instance-type
           operator: In
-          values: ["m5.xlarge", "m5.2xlarge"]
+          values: ["t2.medium", "t3.medium"]
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
@@ -164,7 +165,7 @@ metadata:
   name: default
 spec:
   amiSelectorTerms:
-    - alias: al2@latest
+    - alias: al2023@latest
   role: "KarpenterNodeRole-${CLUSTER_NAME}" # replace with your cluster name
   subnetSelectorTerms:
     - tags:

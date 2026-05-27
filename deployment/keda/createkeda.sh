@@ -144,10 +144,10 @@ spec:
           value: ${AWS_REGION}
         resources:
           requests:
-            memory: "32Mi"
-            cpu: "125m"
+            memory: "512Mi"
+            cpu: "500m"
           limits:
-            memory: "128Mi"
+            memory: "512Mi"
             cpu: "500m"
 EOF
 

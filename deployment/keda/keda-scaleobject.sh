@@ -11,8 +11,8 @@ spec:
   scaleTargetRef:
     name: ${SQS_TARGET_DEPLOYMENT}     #K8s deployment to target
   minReplicaCount: 1  # We don't want pods if the queue is empty nginx-deployment
-  maxReplicaCount: 100  # We don't want to have more than 100 replicas
-  pollingInterval: 30 # How frequently we should go for metrics (in seconds)
+  maxReplicaCount: 15  # We don't want to have more than 100 replicas
+  pollingInterval: 15 # How frequently we should go for metrics (in seconds)
   cooldownPeriod:  10 # How many seconds should we wait for downscale  
   triggers:
   - type: aws-sqs-queue
@@ -20,7 +20,7 @@ spec:
       name: keda-aws-credentials
     metadata:
       queueURL: ${SQS_QUEUE_URL}
-      queueLength: "2"
+      queueLength: "1"
       awsRegion: ${AWS_REGION}
       identityOwner: operator
 ---
